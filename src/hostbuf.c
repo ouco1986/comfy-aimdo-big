@@ -10,7 +10,7 @@ void *hostbuf_allocate(uint64_t size) {
     }
 
     if (!CHECK_CU(cuMemAllocHost(&ptr, alloc_size))) {
-        log(ERROR, "%s: CUDA host allocation failed (%zuk)\n", __func__, alloc_size / K);
+        log(DEBUG, "%s: CUDA host allocation failed (%zuk)\n", __func__, alloc_size / K);
         return NULL;
     }
 
