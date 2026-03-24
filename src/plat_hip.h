@@ -54,4 +54,10 @@ CUresult cuMemAlloc_v2(CUdeviceptr*, size_t);
 #if defined(_WIN32) || defined(_WIN64)
 #define cuMemFreeAsync hipFreeAsync
 #define cuMemAllocAsync hipMallocAsync
+#define unmap_workaround(va, size)
+#else
+#include <sys/mman.h>
+// Workaround for https://github.com/ROCm/rocm-systems/
+// On systems where it's fixed, calling mmap twice is harmless.
+#define unmap_workaround(va, size) mmap((va), (size), PROT_NONE, MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0)
 #endif

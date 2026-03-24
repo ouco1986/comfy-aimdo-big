@@ -179,6 +179,7 @@ static inline CUresult three_stooges(CUdeviceptr vaddr, size_t size, int device,
 
 fail_access:
     CHECK_CU(cuMemUnmap(vaddr, size));
+    unmap_workaround(vaddr, size);
 fail_mmap:
     CHECK_CU(cuMemRelease(h));
 fail:

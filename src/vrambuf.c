@@ -98,6 +98,7 @@ void vrambuf_destroy(void *arg) {
 
     if (buf->allocated > 0) {
         CHECK_CU(cuMemUnmap(buf->base_ptr, buf->allocated));
+        unmap_workaround(buf->base_ptr, buf->allocated);
     }
 
     for (i = 0; i < buf->handle_count; i++) {
