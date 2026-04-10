@@ -94,7 +94,7 @@ const char *get_level_str(int level);
 void log_reset_shots();
 
 #define do_log(do_shot_counter, level, ...) {                                                   \
-    static uint64_t _sc_;                                                                       \
+    static _Thread_local uint64_t _sc_;                                                         \
     if ((!log_level || log_level >= (level)) && _sc_ < log_shot_counter) {                      \
         _sc_ = (do_shot_counter) ? log_shot_counter : 0;                                        \
         fprintf(stderr, "aimdo: %s:%d:%s:", __FILE__, __LINE__, get_level_str(level));          \
