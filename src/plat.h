@@ -18,7 +18,7 @@ typedef struct CUstream_st *cudaStream_t;
 #include <assert.h>
 
 /* control.c */
-bool cuda_budget_deficit();
+bool cuda_budget_deficit(const char **prevailing_deficit_method);
 
 #if defined(_WIN32) || defined(_WIN64)
 
@@ -31,7 +31,7 @@ typedef SSIZE_T ssize_t;
 /* shmem-detect.c */
 bool aimdo_wddm_init(CUdevice dev);
 void aimdo_wddm_cleanup();
-bool poll_budget_deficit();
+bool poll_budget_deficit(const char **prevailing_deficit_method);
 /* cuda-detour.c */
 bool aimdo_setup_hooks();
 void aimdo_teardown_hooks();
@@ -45,8 +45,8 @@ static inline void aimdo_wddm_cleanup() {}
 static inline bool aimdo_setup_hooks() { return true; }
 static inline void aimdo_teardown_hooks() {}
 
-static inline bool poll_budget_deficit() {
-    return cuda_budget_deficit();
+static inline bool poll_budget_deficit(const char **prevailing_deficit_method) {
+    return cuda_budget_deficit(prevailing_deficit_method);
 }
 
 #endif
@@ -114,13 +114,13 @@ extern uint64_t vram_capacity;
 extern uint64_t total_vram_usage;
 extern uint64_t total_vram_last_check;
 extern ssize_t deficit_sync;
-extern const char *prevailing_deficit_method;
 
 static inline size_t budget_deficit(size_t size) {
     ssize_t deficit_simple, deficit_delta;
     size_t deficit;
+    const char *prevailing_deficit_method = "unknown";
 
-    poll_budget_deficit();
+    poll_budget_deficit(&prevailing_deficit_method);
     deficit_simple = (ssize_t)(total_vram_usage + VRAM_HEADROOM + size) - (ssize_t)vram_capacity;
     deficit_delta = deficit_sync + (ssize_t)total_vram_usage - (ssize_t)total_vram_last_check + size;
     deficit = (size_t)MAX(MAX(deficit_simple, deficit_delta), (ssize_t)0);

@@ -65,7 +65,7 @@ fail:
 #define WDDM_BUDGET_HEADROOM (512 * 1024 * 1024)
 #define CUDA_BUDGET_HEADROOM (192 * 1024 * 1024)
 
-bool poll_budget_deficit()
+bool poll_budget_deficit(const char **prevailing_deficit_method)
 {
     DXGI_QUERY_VIDEO_MEMORY_INFO info;
     uint64_t effective_budget = vram_capacity;
@@ -89,14 +89,14 @@ bool poll_budget_deficit()
     }
 
     deficit_sync = (ssize_t)(total_vram_usage + WDDM_BUDGET_HEADROOM) - (ssize_t)effective_budget;
-    prevailing_deficit_method = "WDDM budget";
+    *prevailing_deficit_method = "WDDM budget";
 
     if (CHECK_CU(cuMemGetInfo(&free_vram, &total_vram))) {
         ssize_t deficit_cuda = (ssize_t)(CUDA_BUDGET_HEADROOM / 2) - (ssize_t)free_vram;
 
         if (deficit_cuda > deficit_sync) {
             deficit_sync = deficit_cuda;
-            prevailing_deficit_method = "cuMemGetInfo (Windows)";
+            *prevailing_deficit_method = "cuMemGetInfo (Windows)";
         }
     }
 

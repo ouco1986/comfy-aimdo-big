@@ -5,10 +5,9 @@ uint64_t vram_capacity;
 uint64_t total_vram_usage;
 uint64_t total_vram_last_check;
 ssize_t deficit_sync;
-const char *prevailing_deficit_method;
 CUcontext aimdo_cuda_ctx;
 
-bool cuda_budget_deficit() {
+bool cuda_budget_deficit(const char **prevailing_deficit_method) {
     uint64_t now = GET_TICK();
     static uint64_t last_check = 0;
     size_t free_vram = 0;
@@ -23,7 +22,7 @@ bool cuda_budget_deficit() {
         return false;
     }
     deficit_sync = (ssize_t)VRAM_HEADROOM - (ssize_t)free_vram;
-    prevailing_deficit_method = "cuMemGetInfo";
+    *prevailing_deficit_method = "cuMemGetInfo";
     return true;
 }
 
