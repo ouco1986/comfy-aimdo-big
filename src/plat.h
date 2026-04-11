@@ -19,7 +19,6 @@ typedef struct CUstream_st *cudaStream_t;
 
 /* control.c */
 bool cuda_budget_deficit(const char **prevailing_deficit_method);
-extern CUcontext aimdo_cuda_ctx;
 
 #if defined(_WIN32) || defined(_WIN64)
 

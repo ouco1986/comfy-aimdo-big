@@ -2,7 +2,6 @@
 #include "aimdo-time.h"
 
 _Thread_local AimdoContext *g_devctx;
-CUcontext aimdo_cuda_ctx;
 
 static AimdoContext *g_all_devctxs;
 static size_t g_all_devctx_count;
@@ -25,9 +24,19 @@ bool set_devctx_for_device(int device_id) {
             return true;
         }
     }
-
     set_devctx(NULL);
     return false;
+}
+
+bool set_devctx_for_current_cuda_device(void) {
+    CUdevice device;
+
+    if (!CHECK_CU(cuCtxGetDevice(&device))) {
+        set_devctx(NULL);
+        return false;
+    }
+
+    return set_devctx_for_device((int)device);
 }
 
 SHARED_EXPORT
@@ -82,13 +91,28 @@ uint64_t get_total_vram_usage(void *devctx) {
 }
 
 SHARED_EXPORT
+void cleanup(void) {
+    for (size_t i = 0; i < g_all_devctx_count; i++) {
+        set_devctx(&g_all_devctxs[i]);
+        aimdo_wddm_cleanup();
+        allocations_cleanup();
+
+        free(highest_priority_p); /* FIXME: move the model_vbar. */
+    }
+
+    free(g_all_devctxs);
+    g_all_devctxs = NULL;
+    g_all_devctx_count = 0;
+    set_devctx(NULL);
+}
+
+SHARED_EXPORT
 bool init(const int *cuda_device_ids, size_t num_devices) {
     size_t i;
 
     if (!cuda_device_ids || !num_devices || g_all_devctxs) {
         return false;
     }
-    aimdo_cuda_ctx = NULL;
 
     if (!(g_all_devctxs = calloc(num_devices, sizeof(*g_all_devctxs)))) {
         return false;
@@ -112,9 +136,6 @@ bool init(const int *cuda_device_ids, size_t num_devices) {
             !aimdo_wddm_init(dev)) {
             goto fail;
         }
-        if (i == 0 && !CHECK_CU(cuDevicePrimaryCtxRetain(&aimdo_cuda_ctx, dev))) {
-            goto fail;
-        }
 
         if (!CHECK_CU(cuDeviceGetName(dev_name, sizeof(dev_name), dev))) {
             sprintf(dev_name, "<unknown>");
@@ -130,29 +151,4 @@ bool init(const int *cuda_device_ids, size_t num_devices) {
 fail:
     cleanup();
     return false;
-}
-
-SHARED_EXPORT
-void cleanup(void) {
-    CUdevice dev;
-
-    for (size_t i = 0; i < g_all_devctx_count; i++) {
-        set_devctx(&g_all_devctxs[i]);
-        aimdo_wddm_cleanup();
-        allocations_cleanup();
-
-        free(highest_priority_p); /* FIXME: move the model_vbar. */
-    }
-
-    if (aimdo_cuda_ctx && g_all_devctx_count &&
-        CHECK_CU(cuDeviceGet(&dev, g_all_devctxs[0]._device_id))) {
-        CHECK_CU(cuDevicePrimaryCtxRelease(dev));
-    }
-    aimdo_cuda_ctx = NULL;
-
-    free(g_all_devctxs);
-    g_all_devctxs = NULL;
-    g_all_devctx_count = 0;
-
-    set_devctx(NULL);
 }

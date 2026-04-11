@@ -43,10 +43,8 @@ static inline void set_devctx(AimdoContext *devctx) {
     g_devctx = devctx;
 }
 
-bool init(const int *cuda_device_ids, size_t num_devices);
-void cleanup(void);
-void *get_devctx(int device_id);
 bool set_devctx_for_device(int device_id);
+bool set_devctx_for_current_cuda_device(void);
 
 #define vram_capacity               (g_devctx->_vram_capacity)
 #define total_vram_usage            (g_devctx->_total_vram_usage)

@@ -84,17 +84,6 @@ void allocations_cleanup(void) {
     st_cleanup();
 }
 
-static inline bool set_devctx_for_current_cuda_device(void) {
-    CUdevice device;
-
-    if (!CHECK_CU(cuCtxGetDevice(&device))) {
-        set_devctx(NULL);
-        return false;
-    }
-
-    return set_devctx_for_device((int)device);
-}
-
 static inline void account_alloc(CUdeviceptr ptr, size_t size) {
     unsigned int h = size_hash(ptr);
     SizeEntry *entry;
