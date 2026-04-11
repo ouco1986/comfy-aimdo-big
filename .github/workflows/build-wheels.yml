@@ -66,7 +66,7 @@ jobs:
           call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
           cl.exe /LD /O2 ^
             src/*.c src-win/*.c ^
-            /Isrc /IC:/CUDA_SDK/include /IC:/Detours/include /Fe:comfy_aimdo/aimdo.dll ^
+            /Isrc /Isrc-win /IC:/CUDA_SDK/include /IC:/Detours/include /FIcompiler.h /Fe:comfy_aimdo/aimdo.dll ^
             /link /LIBPATH:C:/CUDA_SDK/lib/x64 /LIBPATH:C:/Detours/lib.X64 ^
             cuda.lib cudart.lib dxgi.lib dxguid.lib detours.lib onecore.lib
         shell: cmd
