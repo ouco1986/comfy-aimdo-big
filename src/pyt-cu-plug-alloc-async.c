@@ -84,6 +84,17 @@ void allocations_cleanup(void) {
     st_cleanup();
 }
 
+static inline bool set_devctx_for_current_cuda_device(void) {
+    CUdevice device;
+
+    if (!CHECK_CU(cuCtxGetDevice(&device))) {
+        set_devctx(NULL);
+        return false;
+    }
+
+    return set_devctx_for_device((int)device);
+}
+
 static inline void account_alloc(CUdeviceptr ptr, size_t size) {
     unsigned int h = size_hash(ptr);
     SizeEntry *entry;
@@ -134,8 +145,12 @@ int aimdo_cuda_malloc(CUdeviceptr *devPtr, size_t size,
     CUdeviceptr dptr;
     CUresult status = 0;
 
-    if (!devPtr || !true_cuMemAlloc_v2 || !set_devctx_for_current_cuda_ctx()) {
+    if (!devPtr || !true_cuMemAlloc_v2) {
         return 1;
+    }
+    if (!set_devctx_for_current_cuda_device()) {
+        /* this is not our device at all - straight passthrough */
+        return true_cuMemAlloc_v2(devPtr, size);
     }
 
     vbars_free(budget_deficit(size + CUDA_MALLOC_HEADROOM));
@@ -165,8 +180,11 @@ int aimdo_cuda_free(CUdeviceptr devPtr,
     if (!devPtr) {
         return 0;
     }
-    if (!true_cuMemFree_v2 || !set_devctx_for_current_cuda_ctx()) {
+    if (!true_cuMemFree_v2) {
         return 1;
+    }
+    if (!set_devctx_for_current_cuda_device()) {
+        return true_cuMemFree_v2(devPtr);
     }
 
     status = true_cuMemFree_v2(devPtr);
@@ -185,8 +203,11 @@ int aimdo_cuda_malloc_async(CUdeviceptr *devPtr, size_t size, CUstream hStream,
 
     log(VVERBOSE, "%s (start) size=%zuk stream=%p\n", __func__, size / K, hStream);
 
-    if (!devPtr || !set_devctx_for_current_cuda_ctx()) {
+    if (!devPtr || !true_cuMemAllocAsync) {
         return 1;
+    }
+    if (!set_devctx_for_current_cuda_device()) {
+        return true_cuMemAllocAsync(devPtr, size, hStream);
     }
 
     vbars_free(budget_deficit(size));
@@ -221,8 +242,11 @@ int aimdo_cuda_free_async(CUdeviceptr devPtr, CUstream hStream,
     if (!devPtr) {
         return 0;
     }
-    if (!set_devctx_for_current_cuda_ctx()) {
+    if (!true_cuMemFreeAsync) {
         return 1;
+    }
+    if (!set_devctx_for_current_cuda_device()) {
+        return true_cuMemFreeAsync(devPtr, hStream);
     }
 
     status = true_cuMemFreeAsync(devPtr, hStream);

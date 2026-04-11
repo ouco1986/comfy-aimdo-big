@@ -26,26 +26,6 @@ bool set_devctx_for_device(int device_id) {
         }
     }
 
-    log(ERROR, "%s: no Aimdo context for device %d\n", __func__, device_id);
-    set_devctx(NULL);
-    return false;
-}
-
-bool set_devctx_for_current_cuda_ctx(void) {
-    CUcontext cuda_ctx = NULL;
-
-    if (cuCtxGetCurrent(&cuda_ctx) != CUDA_SUCCESS || !cuda_ctx) {
-        goto fail;
-    }
-
-    for (size_t i = 0; i < g_all_devctx_count; i++) {
-        if (g_all_devctxs[i]._cuda_ctx == cuda_ctx) {
-            set_devctx(&g_all_devctxs[i]);
-            return true;
-        }
-    }
-
-fail:
     set_devctx(NULL);
     return false;
 }
@@ -129,13 +109,11 @@ bool init(const int *cuda_device_ids, size_t num_devices) {
 
         if (!CHECK_CU(cuDeviceGet(&dev, cuda_device_ids[i])) ||
             !CHECK_CU(cuDeviceTotalMem(&vram_capacity, dev)) ||
-            !CHECK_CU(cuDevicePrimaryCtxRetain(&devctx->_cuda_ctx, dev)) ||
-            !CHECK_CU(cuCtxSetCurrent(devctx->_cuda_ctx)) ||
             !aimdo_wddm_init(dev)) {
             goto fail;
         }
-        if (i == 0) {
-            aimdo_cuda_ctx = devctx->_cuda_ctx;
+        if (i == 0 && !CHECK_CU(cuDevicePrimaryCtxRetain(&aimdo_cuda_ctx, dev))) {
+            goto fail;
         }
 
         if (!CHECK_CU(cuDeviceGetName(dev_name, sizeof(dev_name), dev))) {
@@ -156,25 +134,25 @@ fail:
 
 SHARED_EXPORT
 void cleanup(void) {
-    for (size_t i = 0; i < g_all_devctx_count; i++) {
-        CUdevice dev;
+    CUdevice dev;
 
+    for (size_t i = 0; i < g_all_devctx_count; i++) {
         set_devctx(&g_all_devctxs[i]);
         aimdo_wddm_cleanup();
         allocations_cleanup();
 
-        if (g_all_devctxs[i]._cuda_ctx &&
-            CHECK_CU(cuDeviceGet(&dev, g_all_devctxs[i]._device_id))) {
-            CHECK_CU(cuDevicePrimaryCtxRelease(dev));
-            g_all_devctxs[i]._cuda_ctx = NULL;
-        }
-
         free(highest_priority_p); /* FIXME: move the model_vbar. */
     }
+
+    if (aimdo_cuda_ctx && g_all_devctx_count &&
+        CHECK_CU(cuDeviceGet(&dev, g_all_devctxs[0]._device_id))) {
+        CHECK_CU(cuDevicePrimaryCtxRelease(dev));
+    }
+    aimdo_cuda_ctx = NULL;
 
     free(g_all_devctxs);
     g_all_devctxs = NULL;
     g_all_devctx_count = 0;
-    aimdo_cuda_ctx = NULL;
+
     set_devctx(NULL);
 }
