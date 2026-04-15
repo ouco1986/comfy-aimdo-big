@@ -110,11 +110,8 @@ SHARED_EXPORT
 bool init(const int *cuda_device_ids, size_t num_devices) {
     size_t i;
 
-    if (!cuda_device_ids || !num_devices || g_all_devctxs) {
-        return false;
-    }
-
-    if (!(g_all_devctxs = calloc(num_devices, sizeof(*g_all_devctxs)))) {
+    if (g_all_devctxs ||
+        !(g_all_devctxs = calloc(num_devices, sizeof(*g_all_devctxs)))) {
         return false;
     }
     g_all_devctx_count = num_devices;
@@ -127,11 +124,8 @@ bool init(const int *cuda_device_ids, size_t num_devices) {
         devctx->_device_id = cuda_device_ids[i];
         set_devctx(devctx);
 
-        if (!allocations_init()) {
-            goto fail;
-        }
-
-        if (!CHECK_CU(cuDeviceGet(&dev, cuda_device_ids[i])) ||
+        if (!allocations_init() ||
+            !CHECK_CU(cuDeviceGet(&dev, cuda_device_ids[i])) ||
             !CHECK_CU(cuDeviceTotalMem(&vram_capacity, dev)) ||
             !aimdo_wddm_init(dev)) {
             goto fail;
