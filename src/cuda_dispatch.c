@@ -1,0 +1,123 @@
+#include "plat.h"
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+static HMODULE g_cuda_module;
+#else
+#include <dlfcn.h>
+static void *g_cuda_module;
+#endif
+
+AimdoCudaDispatch g_cuda;
+
+typedef struct {
+    void **slot;
+    const char *symbol;
+    cuuint64_t flags;
+} DispatchSymbol;
+
+static const DispatchSymbol dispatch_symbols[] = {
+    { (void **)&g_cuda.p_cuInit, "cuInit", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuGetErrorString, "cuGetErrorString", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuCtxGetDevice, "cuCtxGetDevice", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuCtxSynchronize, "cuCtxSynchronize", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuDeviceGet, "cuDeviceGet", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuDeviceTotalMem, "cuDeviceTotalMem", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuDeviceGetName, "cuDeviceGetName", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemGetInfo, "cuMemGetInfo", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemAlloc_v2, "cuMemAlloc", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemFree_v2, "cuMemFree", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemAllocAsync, "cuMemAllocAsync", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemAllocAsync_ptsz, "cuMemAllocAsync", CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM },
+    { (void **)&g_cuda.p_cuMemFreeAsync, "cuMemFreeAsync", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemFreeAsync_ptsz, "cuMemFreeAsync", CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM },
+    { (void **)&g_cuda.p_cuMemAllocHost, "cuMemAllocHost", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemFreeHost, "cuMemFreeHost", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemAddressReserve, "cuMemAddressReserve", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemAddressFree, "cuMemAddressFree", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemCreate, "cuMemCreate", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemMap, "cuMemMap", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemSetAccess, "cuMemSetAccess", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemUnmap, "cuMemUnmap", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+    { (void **)&g_cuda.p_cuMemRelease, "cuMemRelease", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+#if defined(_WIN32) || defined(_WIN64)
+    { (void **)&g_cuda.p_cuDeviceGetLuid, "cuDeviceGetLuid", CU_GET_PROC_ADDRESS_LEGACY_STREAM },
+#endif
+};
+
+bool aimdo_cuda_runtime_init(void) {
+    if (g_cuda.p_cuInit) {
+        return true;
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    g_cuda_module = LoadLibraryA("nvcuda.dll");
+    if (!g_cuda_module) {
+        g_cuda_module = LoadLibraryA("nvcuda64.dll");
+    }
+    if (!g_cuda_module) {
+        log(ERROR, "%s: failed to load the CUDA driver library\n", __func__);
+        return false;
+    }
+
+    g_cuda.p_cuGetProcAddress = (PFN_cuGetProcAddress)GetProcAddress(g_cuda_module,
+                                                                     "cuGetProcAddress");
+#else
+    g_cuda_module = dlopen("libcuda.so.1", RTLD_LAZY | RTLD_LOCAL);
+    if (!g_cuda_module) {
+        g_cuda_module = dlopen("libcuda.so", RTLD_LAZY | RTLD_LOCAL);
+    }
+    if (!g_cuda_module) {
+        log(ERROR, "%s: failed to load libcuda.so.1: %s\n", __func__, dlerror());
+        return false;
+    }
+
+    g_cuda.p_cuGetProcAddress = (PFN_cuGetProcAddress)dlsym(g_cuda_module,
+                                                            "cuGetProcAddress");
+#endif
+    if (!g_cuda.p_cuGetProcAddress) {
+        log(ERROR, "%s: failed to resolve cuGetProcAddress\n", __func__);
+        aimdo_cuda_runtime_cleanup();
+        return false;
+    }
+
+    for (size_t i = 0; i < sizeof(dispatch_symbols) / sizeof(dispatch_symbols[0]); i++) {
+        void *resolved = NULL;
+
+        if (g_cuda.p_cuGetProcAddress(dispatch_symbols[i].symbol, &resolved,
+                                      AIMDO_CUDA_ABI_VERSION,
+                                      dispatch_symbols[i].flags, NULL) != CUDA_SUCCESS) {
+            resolved = NULL;
+        }
+        if (!resolved) {
+            log(ERROR, "%s: failed to resolve required CUDA symbol %s\n", __func__,
+                dispatch_symbols[i].symbol);
+            aimdo_cuda_runtime_cleanup();
+            return false;
+        }
+        *dispatch_symbols[i].slot = resolved;
+    }
+
+    if (g_cuda.p_cuInit(0) != CUDA_SUCCESS) {
+        log(ERROR, "%s: cuInit failed\n", __func__);
+        aimdo_cuda_runtime_cleanup();
+        return false;
+    }
+
+    return true;
+}
+
+void aimdo_cuda_runtime_cleanup(void) {
+    memset(&g_cuda, 0, sizeof(g_cuda));
+
+    if (!g_cuda_module) {
+        return;
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    FreeLibrary(g_cuda_module);
+#else
+    dlclose(g_cuda_module);
+#endif
+    g_cuda_module = NULL;
+}

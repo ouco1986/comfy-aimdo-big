@@ -4,8 +4,6 @@
 #include <windows.h>
 #include <dxgi1_4.h>
 
-#include <cuda.h>
-
 bool aimdo_wddm_init(CUdevice dev)
 {
     int fail_code = 1;

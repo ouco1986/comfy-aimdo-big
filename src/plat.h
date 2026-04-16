@@ -1,9 +1,10 @@
 #pragma once
 
-#include <cuda.h>
+#include "cuda_dispatch.h"
 
 /* NOTE: cuda_runtime.h is banned here. Always use the driver APIs.
- * Add duck-types here.
+ * Keep CUDA SDK headers out of this project and add any required duck-types
+ * to cuda_abi.h instead.
  */
 
 typedef int cudaError_t;
@@ -52,6 +53,27 @@ static inline bool poll_budget_deficit(const char **prevailing_deficit_method) {
 #endif
 
 #include "control.h"
+
+#define cuInit                      g_cuda.p_cuInit
+#define cuGetErrorString            g_cuda.p_cuGetErrorString
+#define cuCtxGetDevice              g_cuda.p_cuCtxGetDevice
+#define cuCtxSynchronize            g_cuda.p_cuCtxSynchronize
+#define cuDeviceGet                 g_cuda.p_cuDeviceGet
+#define cuDeviceTotalMem            g_cuda.p_cuDeviceTotalMem
+#define cuDeviceGetName             g_cuda.p_cuDeviceGetName
+#define cuMemGetInfo                g_cuda.p_cuMemGetInfo
+#define cuMemAllocHost              g_cuda.p_cuMemAllocHost
+#define cuMemFreeHost               g_cuda.p_cuMemFreeHost
+#define cuMemAddressReserve         g_cuda.p_cuMemAddressReserve
+#define cuMemAddressFree            g_cuda.p_cuMemAddressFree
+#define cuMemCreate                 g_cuda.p_cuMemCreate
+#define cuMemMap                    g_cuda.p_cuMemMap
+#define cuMemSetAccess              g_cuda.p_cuMemSetAccess
+#define cuMemUnmap                  g_cuda.p_cuMemUnmap
+#define cuMemRelease                g_cuda.p_cuMemRelease
+#if defined(_WIN32) || defined(_WIN64)
+#define cuDeviceGetLuid             g_cuda.p_cuDeviceGetLuid
+#endif
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

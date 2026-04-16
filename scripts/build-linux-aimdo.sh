@@ -9,8 +9,6 @@ FUNCHOOK_VERSION=1.1.3
 FUNCHOOK_SRC="$BUILD_DIR/funchook-$FUNCHOOK_VERSION"
 FUNCHOOK_BUILD_DIR="$BUILD_DIR/funchook-$FUNCHOOK_VERSION-distorm"
 FUNCHOOK_TARBALL="$BUILD_DIR/funchook-$FUNCHOOK_VERSION.tar.gz"
-CUDA_INCLUDE_DIR=/usr/local/cuda-12.1/include
-CUDA_STUB_DIR=/usr/local/cuda-12.1/targets/x86_64-linux/lib/stubs
 
 if [ ! -f "$FUNCHOOK_SRC/CMakeLists.txt" ]; then
     URL="https://github.com/kubo/funchook/releases/download/v$FUNCHOOK_VERSION/funchook-$FUNCHOOK_VERSION.tar.gz"
@@ -47,7 +45,6 @@ mkdir -p "$(dirname -- "$OUTPUT_PATH")"
 gcc -shared -o "$OUTPUT_PATH" -fPIC -O2 -g -pthread \
     ${AIMDO_EXTRA_CFLAGS:-} \
     "$ROOT_DIR"/src/*.c "$ROOT_DIR"/src-posix/*.c \
-    -I"$ROOT_DIR/src" -I"$FUNCHOOK_SRC/include" -I"$CUDA_INCLUDE_DIR" \
-    -L"$CUDA_STUB_DIR" \
+    -I"$ROOT_DIR/src" -I"$FUNCHOOK_SRC/include" \
     "$FUNCHOOK_BUILD_DIR/libfunchook.a" "$FUNCHOOK_BUILD_DIR/libdistorm.a" \
-    -lcuda -ldl
+    -ldl
