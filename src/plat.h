@@ -18,7 +18,7 @@ typedef struct CUstream_st *cudaStream_t;
 #include <assert.h>
 
 /* control.c */
-bool cuda_budget_deficit();
+bool cuda_budget_deficit(const char **prevailing_deficit_method);
 
 #if defined(_WIN32) || defined(_WIN64)
 
@@ -31,7 +31,7 @@ typedef SSIZE_T ssize_t;
 /* shmem-detect.c */
 bool aimdo_wddm_init(CUdevice dev);
 void aimdo_wddm_cleanup();
-bool poll_budget_deficit();
+bool poll_budget_deficit(const char **prevailing_deficit_method);
 /* cuda-detour.c */
 bool aimdo_setup_hooks();
 void aimdo_teardown_hooks();
@@ -42,23 +42,16 @@ void aimdo_teardown_hooks();
 
 static inline bool aimdo_wddm_init(CUdevice dev) { return true; }
 static inline void aimdo_wddm_cleanup() {}
-static inline bool aimdo_setup_hooks() { return true; }
-static inline void aimdo_teardown_hooks() {}
+bool aimdo_setup_hooks(void);
+void aimdo_teardown_hooks(void);
 
-static inline bool poll_budget_deficit() {
-    return cuda_budget_deficit();
+static inline bool poll_budget_deficit(const char **prevailing_deficit_method) {
+    return cuda_budget_deficit(prevailing_deficit_method);
 }
 
 #endif
 
-static inline bool plat_init(CUdevice dev) {
-    return aimdo_wddm_init(dev) &&
-           aimdo_setup_hooks();
-}
-static inline void plat_cleanup() {
-    aimdo_wddm_cleanup();
-    aimdo_teardown_hooks();
-}
+#include "control.h"
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -94,7 +87,7 @@ const char *get_level_str(int level);
 void log_reset_shots();
 
 #define do_log(do_shot_counter, level, ...) {                                                   \
-    static uint64_t _sc_;                                                                       \
+    static _Thread_local uint64_t _sc_;                                                         \
     if ((!log_level || log_level >= (level)) && _sc_ < log_shot_counter) {                      \
         _sc_ = (do_shot_counter) ? log_shot_counter : 0;                                        \
         fprintf(stderr, "aimdo: %s:%d:%s:", __FILE__, __LINE__, get_level_str(level));          \
@@ -109,18 +102,12 @@ void log_reset_shots();
 /* The default VRAM headroom. Different deficit methods with BYO headroom */
 #define VRAM_HEADROOM (256 * 1024 * 1024)
 
-/* control.c */
-extern uint64_t vram_capacity;
-extern uint64_t total_vram_usage;
-extern uint64_t total_vram_last_check;
-extern ssize_t deficit_sync;
-extern const char *prevailing_deficit_method;
-
 static inline size_t budget_deficit(size_t size) {
     ssize_t deficit_simple, deficit_delta;
     size_t deficit;
+    const char *prevailing_deficit_method = "unknown";
 
-    poll_budget_deficit();
+    poll_budget_deficit(&prevailing_deficit_method);
     deficit_simple = (ssize_t)(total_vram_usage + VRAM_HEADROOM + size) - (ssize_t)vram_capacity;
     deficit_delta = deficit_sync + (ssize_t)total_vram_usage - (ssize_t)total_vram_last_check + size;
     deficit = (size_t)MAX(MAX(deficit_simple, deficit_delta), (ssize_t)0);
@@ -187,7 +174,7 @@ fail:
 /* model_vbar.c */
 size_t vbars_free(size_t size);
 SHARED_EXPORT
-uint64_t vbars_analyze(bool only_dirty);
+uint64_t vbars_analyze(void *devctx, bool only_dirty);
 
 /* pyt-cu-alloc.c */
 int aimdo_cuda_malloc(CUdeviceptr *dptr, size_t size,
@@ -200,9 +187,8 @@ int aimdo_cuda_malloc_async(CUdeviceptr *devPtr, size_t size, CUstream hStream,
 int aimdo_cuda_free_async(CUdeviceptr devPtr, CUstream hStream,
                           CUresult (*true_cuMemFreeAsync)(CUdeviceptr, CUstream));
 
+bool allocations_init(void);
+void allocations_cleanup(void);
 void allocations_analyze();
-
-/* control.c */
-extern CUcontext aimdo_cuda_ctx;
 SHARED_EXPORT
-void aimdo_analyze();
+void aimdo_analyze(void *devctx);

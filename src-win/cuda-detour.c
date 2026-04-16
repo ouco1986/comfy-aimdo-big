@@ -2,40 +2,7 @@
 #include <windows.h>
 #include <detours.h>
 
-typedef struct {
-    void **true_ptr;
-    void *hook_ptr;
-    const char *name;
-} HookEntry;
-
-/* Driver API Versioned Function Pointers */
-static int (*true_cuMemAlloc_v2)(CUdeviceptr*, size_t);
-static int (*true_cuMemFree_v2)(CUdeviceptr);
-static int (*true_cuMemAllocAsync)(CUdeviceptr*, size_t, CUstream);
-static int (*true_cuMemFreeAsync)(CUdeviceptr, CUstream);
-
-static int aimdo_cuMemAlloc_v2(CUdeviceptr* dptr, size_t size) {
-    return aimdo_cuda_malloc(dptr, size, true_cuMemAlloc_v2);
-}
-
-static int aimdo_cuMemFree_v2(CUdeviceptr dptr) {
-    return aimdo_cuda_free(dptr, true_cuMemFree_v2);
-}
-
-static int aimdo_cuMemAllocAsync(CUdeviceptr* dptr, size_t size, CUstream hStream) {
-    return aimdo_cuda_malloc_async(dptr, size, hStream, true_cuMemAllocAsync);
-}
-
-static int aimdo_cuMemFreeAsync(CUdeviceptr dptr, CUstream hStream) {
-    return aimdo_cuda_free_async(dptr, hStream, true_cuMemFreeAsync);
-}
-
-static const HookEntry hooks[] = {
-    { (void**)&true_cuMemAlloc_v2,    aimdo_cuMemAlloc_v2,    "cuMemAlloc_v2"    },
-    { (void**)&true_cuMemFree_v2,     aimdo_cuMemFree_v2,     "cuMemFree_v2"     },
-    { (void**)&true_cuMemAllocAsync,  aimdo_cuMemAllocAsync,  "cuMemAllocAsync"  },
-    { (void**)&true_cuMemFreeAsync,   aimdo_cuMemFreeAsync,   "cuMemFreeAsync"   },
-};
+#include "cuda-hooks-shared.h"
 
 static inline bool install_hook_entrys(HMODULE h, HookEntry *hooks, size_t num_hooks) {
     DetourTransactionBegin();
