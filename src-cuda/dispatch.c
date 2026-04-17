@@ -10,6 +10,12 @@ static void *g_cuda_module;
 
 AimdoCudaDispatch g_cuda;
 
+/* Keep the ABI target pinned to the minimum supported CUDA version so
+ * cuGetProcAddress does not hand us newer function revisions with different
+ * signatures.
+ */
+#define AIMDO_CUDA_ABI_VERSION 12060
+
 typedef struct {
     void **slot;
     const char *symbol;

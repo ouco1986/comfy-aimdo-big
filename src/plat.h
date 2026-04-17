@@ -1,22 +1,24 @@
 #pragma once
 
-#include "cuda_abi.h"
-
-#if defined(__HIP_PLATFORM_AMD__)
-#include <hip/hip_runtime.h>
-#else
-#include "cuda_dispatch.h"
-#endif
+#include "gpu_dispatch.h"
 
 /* NOTE: cuda_runtime.h is banned here. Always use the driver APIs.
- * Keep CUDA SDK headers out of this project and add any required duck-types
- * to cuda_abi.h instead.
+ * Keep SDK headers out of this project and add any required duck-types
+ * to the repo-owned ABI headers instead.
  */
 
-#if !defined(__HIP_PLATFORM_AMD__)
 typedef int cudaError_t;
 typedef struct CUstream_st *cudaStream_t;
 
+#if defined(__HIP_PLATFORM_AMD__) && !defined(_WIN32) && !defined(_WIN64)
+#include <sys/mman.h>
+/* Work around ROCm VMM unmap behavior by reprotecting the range after unmap.
+ * On systems where this is fixed, remapping PROT_NONE is harmless.
+ */
+#define unmap_workaround(va, size) \
+    mmap((void *)(va), (size), PROT_NONE, \
+         MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0)
+#else
 #define unmap_workaround(va, size)
 #endif
 
@@ -64,9 +66,6 @@ static inline bool poll_budget_deficit(const char **prevailing_deficit_method) {
 
 #include "control.h"
 
-#if defined(__HIP_PLATFORM_AMD__)
-#include "plat_hip.h"
-#else
 #define cuInit                      g_cuda.p_cuInit
 #define cuGetErrorString            g_cuda.p_cuGetErrorString
 #define cuCtxGetDevice              g_cuda.p_cuCtxGetDevice
@@ -84,10 +83,7 @@ static inline bool poll_budget_deficit(const char **prevailing_deficit_method) {
 #define cuMemSetAccess              g_cuda.p_cuMemSetAccess
 #define cuMemUnmap                  g_cuda.p_cuMemUnmap
 #define cuMemRelease                g_cuda.p_cuMemRelease
-#if defined(_WIN32) || defined(_WIN64)
 #define cuDeviceGetLuid             g_cuda.p_cuDeviceGetLuid
-#endif
-#endif
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

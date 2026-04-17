@@ -1,14 +1,8 @@
 #pragma once
 
-#include "cuda_abi.h"
+#include "gpu_abi.h"
 
 #include <stdbool.h>
-
-/* Keep the ABI target pinned to the minimum supported CUDA version so
- * cuGetProcAddress does not hand us newer function revisions with different
- * signatures.
- */
-#define AIMDO_CUDA_ABI_VERSION 12060
 
 typedef CUresult (CUDAAPI *PFN_cuInit)(unsigned int flags);
 typedef CUresult (CUDAAPI *PFN_cuGetProcAddress)(const char *symbol, void **pfn, int cudaVersion,
@@ -42,10 +36,8 @@ typedef CUresult (CUDAAPI *PFN_cuMemSetAccess)(CUdeviceptr ptr, size_t size,
                                                const CUmemAccessDesc *desc, size_t count);
 typedef CUresult (CUDAAPI *PFN_cuMemUnmap)(CUdeviceptr ptr, size_t size);
 typedef CUresult (CUDAAPI *PFN_cuMemRelease)(CUmemGenericAllocationHandle handle);
-#if defined(_WIN32) || defined(_WIN64)
 typedef CUresult (CUDAAPI *PFN_cuDeviceGetLuid)(char *luid, unsigned int *deviceNodeMask,
                                                 CUdevice dev);
-#endif
 
 typedef struct AimdoCudaDispatch {
     PFN_cuInit p_cuInit;
@@ -72,9 +64,7 @@ typedef struct AimdoCudaDispatch {
     PFN_cuMemSetAccess p_cuMemSetAccess;
     PFN_cuMemUnmap p_cuMemUnmap;
     PFN_cuMemRelease p_cuMemRelease;
-#if defined(_WIN32) || defined(_WIN64)
     PFN_cuDeviceGetLuid p_cuDeviceGetLuid;
-#endif
 } AimdoCudaDispatch;
 
 extern AimdoCudaDispatch g_cuda;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cuda_abi.h"
+#include "gpu_abi.h"
 
 #include <stdbool.h>
 #include <stddef.h>

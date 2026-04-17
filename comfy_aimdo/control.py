@@ -4,14 +4,9 @@ import platform
 from pathlib import Path
 import logging
 import importlib.util
-from enum import Enum
 
 lib = None
 devctxs = []
-
-class AimdoImpl(Enum):
-    CUDA = "cuda"
-    ROCM = "rocm"
 
 
 def detect_vendor():
@@ -30,13 +25,13 @@ def detect_vendor():
         pass
 
     if '+cu' in version:
-        return AimdoImpl.CUDA
+        return "cuda"
     if '+rocm' in version:
-        return AimdoImpl.ROCM
+        return "rocm"
     return None
 
 
-def init(implementation: AimdoImpl | None = None):
+def init(implementation: str | None = None):
     global lib
 
     if lib is not None:
@@ -47,11 +42,11 @@ def init(implementation: AimdoImpl | None = None):
 
     if implementation is None:
         logging.warning("Could not autodetect AIMDO implementation, assuming Nvidia")
-        implementation = AimdoImpl.CUDA
+        implementation = "cuda"
 
     impl = {
-        AimdoImpl.CUDA: "aimdo",
-        AimdoImpl.ROCM: "aimdo_rocm"
+        "cuda": "aimdo",
+        "rocm": "aimdo_rocm",
     }[implementation]
 
     try:
@@ -59,13 +54,6 @@ def init(implementation: AimdoImpl | None = None):
         system = platform.system()
         if system == "Windows":
             ext = "dll"
-            # For ROCm on Windows: preload amdhip64 from rocm_sdk_core
-            if implementation == AimdoImpl.ROCM:
-                try:
-                    from . import _rocm_init
-                    _rocm_init.initialize()
-                except ImportError:
-                    pass  # _rocm_init.py not present or rocm_sdk not installed
             mode = 0
         elif system == "Linux":
             ext = "so"

@@ -49,9 +49,15 @@ jobs:
         run: |
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VS_PATH=%%i"
           call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          del /q comfy_aimdo\*.dll 2>nul
           cl.exe /LD /O2 ^
-            src/*.c src-win/*.c ^
+            src/*.c src-cuda/dispatch.c src-win/*.c ^
             /Isrc /Isrc-win /IC:/Detours/include /FIcompiler.h /Fe:comfy_aimdo/aimdo.dll ^
+            /link /LIBPATH:C:/Detours/lib.X64 ^
+            dxgi.lib dxguid.lib detours.lib onecore.lib
+          cl.exe /LD /O2 /D__HIP_PLATFORM_AMD__ ^
+            src/*.c src-hip/dispatch.c src-win/*.c ^
+            /Isrc /Isrc-win /IC:/Detours/include /FIcompiler.h /Fe:comfy_aimdo/aimdo_rocm.dll ^
             /link /LIBPATH:C:/Detours/lib.X64 ^
             dxgi.lib dxguid.lib detours.lib onecore.lib
         shell: cmd

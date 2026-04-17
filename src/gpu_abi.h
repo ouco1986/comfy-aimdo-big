@@ -3,7 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(__HIP_PLATFORM_AMD__)
+/* HIP runtime exports use the platform C ABI. */
+#define CUDAAPI
+#elif defined(_WIN32) || defined(_WIN64)
 #define CUDAAPI __stdcall
 #else
 #define CUDAAPI
@@ -27,18 +30,6 @@ typedef enum cudaError_enum {
     CUDA_SUCCESS = 0,
     CUDA_ERROR_OUT_OF_MEMORY = 2,
 } cudaError_enum;
-
-typedef enum CUdriverProcAddress_flags_enum {
-    CU_GET_PROC_ADDRESS_DEFAULT = 0x0,
-    CU_GET_PROC_ADDRESS_LEGACY_STREAM = 0x1,
-    CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM = 0x2,
-} CUdriverProcAddress_flags;
-
-typedef enum CUdriverProcAddressQueryResult_enum {
-    CU_GET_PROC_ADDRESS_SUCCESS = 0,
-    CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND = 1,
-    CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT = 2,
-} CUdriverProcAddressQueryResult;
 
 typedef enum CUmemAllocationHandleType_enum {
     CU_MEM_HANDLE_TYPE_NONE = 0x0,
@@ -85,3 +76,15 @@ typedef struct CUmemAccessDesc_st {
     CUmemLocation location;
     CUmemAccess_flags flags;
 } CUmemAccessDesc;
+
+typedef enum CUdriverProcAddress_flags_enum {
+    CU_GET_PROC_ADDRESS_DEFAULT = 0x0,
+    CU_GET_PROC_ADDRESS_LEGACY_STREAM = 0x1,
+    CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM = 0x2,
+} CUdriverProcAddress_flags;
+
+typedef enum CUdriverProcAddressQueryResult_enum {
+    CU_GET_PROC_ADDRESS_SUCCESS = 0,
+    CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND = 1,
+    CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT = 2,
+} CUdriverProcAddressQueryResult;

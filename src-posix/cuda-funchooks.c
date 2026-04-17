@@ -11,8 +11,8 @@ static funchook_t *funchook_state;
 bool aimdo_setup_hooks(void) {
     int status;
 
-    if (!g_cuda.p_cuGetProcAddress) {
-        log(ERROR, "%s: CUDA runtime dispatch is not initialized\n", __func__);
+    if (!hooks[0].target_ptr || !*hooks[0].target_ptr) {
+        log(ERROR, "%s: CUDA hook targets are not resolved\n", __func__);
         return false;
     }
 
