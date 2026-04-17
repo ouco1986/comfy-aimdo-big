@@ -99,10 +99,20 @@ bool aimdo_cuda_runtime_init(void) {
     g_cuda.p_cuMemAllocAsync_ptsz = g_cuda.p_cuMemAllocAsync;
     g_cuda.p_cuMemFreeAsync_ptsz = g_cuda.p_cuMemFreeAsync;
 
-    if (g_cuda.p_cuInit(0) != CUDA_SUCCESS) {
-        log(ERROR, "%s: hipInit failed\n", __func__);
-        aimdo_cuda_runtime_cleanup();
-        return false;
+    {
+        CUresult err = g_cuda.p_cuInit(0);
+
+        if (err != CUDA_SUCCESS) {
+            const char *desc = NULL;
+
+            if (g_cuda.p_cuGetErrorString) {
+                g_cuda.p_cuGetErrorString(err, &desc);
+            }
+            log(ERROR, "%s: hipInit failed with code %d%s%s\n", __func__, (int)err,
+                desc ? ": " : "", desc ? desc : "");
+            aimdo_cuda_runtime_cleanup();
+            return false;
+        }
     }
 
     return true;
