@@ -73,7 +73,11 @@ bool cuda_budget_deficit(const char **prevailing_deficit_method) {
         return false;
     }
     deficit_sync = (ssize_t)VRAM_HEADROOM - (ssize_t)free_vram;
+    log(DEBUG,
+        "%s: cuMemGetInfo poll free=%zu MB total=%zu MB deficit_sync=%zd MB recorded=%zu MB\n",
+        __func__, free_vram / M, total_vram / M, deficit_sync / (ssize_t)M, total_vram_usage / M);
     *prevailing_deficit_method = "cuMemGetInfo";
+    log(DEBUG, "%s: prevailing method %s\n", __func__, *prevailing_deficit_method);
     return true;
 }
 

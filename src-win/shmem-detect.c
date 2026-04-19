@@ -122,6 +122,11 @@ bool poll_budget_deficit(const char **prevailing_deficit_method)
     if (g_wddm_adapter) {
         if (SUCCEEDED(g_wddm_adapter->lpVtbl->QueryVideoMemoryInfo(g_wddm_adapter, 0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
             effective_budget = info.Budget;
+            log(DEBUG,
+                "%s: WDDM budget=%zu MB usage=%zu MB reservation=%zu MB available=%zu MB\n",
+                __func__, (size_t)(info.Budget / M), (size_t)(info.CurrentUsage / M),
+                (size_t)(info.CurrentReservation / M),
+                (size_t)(info.AvailableForReservation / M));
         } else {
             log(WARNING, "comfy-aimdo WDDM VRAM query failed. Using physical capacity as fallback\n");
         }
@@ -133,12 +138,17 @@ bool poll_budget_deficit(const char **prevailing_deficit_method)
     if (CHECK_CU(cuMemGetInfo(&free_vram, &total_vram))) {
         ssize_t deficit_cuda = (ssize_t)(CUDA_BUDGET_HEADROOM / 2) - (ssize_t)free_vram;
 
+        log(DEBUG,
+            "%s: cuMemGetInfo free=%zu MB total=%zu MB deficit_cuda=%zd MB\n",
+            __func__, free_vram / M, total_vram / M, deficit_cuda / (ssize_t)M);
+
         if (deficit_cuda > deficit_sync) {
             deficit_sync = deficit_cuda;
             *prevailing_deficit_method = "cuMemGetInfo (Windows)";
         }
     }
 
+    log(DEBUG, "%s: prevailing method %s\n", __func__, *prevailing_deficit_method);
     return true;
 }
 
