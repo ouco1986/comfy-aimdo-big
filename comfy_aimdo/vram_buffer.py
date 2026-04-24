@@ -39,15 +39,17 @@ class VRAMBuffer:
     def size(self):
         return self._allocated
 
-    def get(self, required_size):
-        required_size = int(required_size)
+    def get(self, size, offset=0):
+        offset = int(offset)
+        size = int(size)
+        required_size = size + offset
         if required_size > self._allocated:
             if not lib.vrambuf_grow(self._ptr, required_size):
                 raise RuntimeError(f"VRAM grow failed: {required_size} bytes")
 
             self._allocated = (required_size + self._chunk_size - 1) & ~(self._chunk_size - 1)
 
-        return (self, self.base_addr, required_size)
+        return (self, self.base_addr + offset, size)
 
     def __del__(self):
         ptr = getattr(self, "_ptr", None)
