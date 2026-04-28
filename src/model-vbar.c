@@ -7,7 +7,7 @@
 
 typedef struct ResidentPage {
     CUmemGenericAllocationHandle handle;
-    bool pinned;
+    uint32_t pin_count;
     size_t serial;
 } ResidentPage;
 
@@ -70,8 +70,8 @@ uint64_t vbars_analyze(void *devctx, bool only_dirty) {
                         (void*)i, p, i->watermark);
                 }
 
-                if (rp->pinned) {
-                    log(WARNING, "VBAR %p: Page %zu is PINNED\n", (void*)i, p);
+                if (rp->pin_count) {
+                    log(WARNING, "VBAR %p: Page %zu pin_count=%u\n", (void*)i, p, rp->pin_count);
                 }
             }
         }
@@ -95,7 +95,7 @@ static inline bool mod1(ModelVBAR *mv, size_t page_nr, bool do_free, bool do_unp
     ResidentPage *rp = &mv->residency_map[page_nr];
     CUdeviceptr vaddr = mv->vbar + page_nr * VBAR_PAGE_SIZE;
 
-    do_free = do_free && rp->handle && (do_unpin || !rp->pinned);
+    do_free = do_free && rp->handle && (do_unpin || rp->pin_count == 0);
     if (do_free) {
         CHECK_CU(cuMemUnmap(vaddr, VBAR_PAGE_SIZE));
         unmap_workaround(vaddr, VBAR_PAGE_SIZE);
@@ -105,7 +105,7 @@ static inline bool mod1(ModelVBAR *mv, size_t page_nr, bool do_free, bool do_unp
         mv->resident_count--;
     }
     if (do_unpin) {
-        rp->pinned = false;
+        rp->pin_count = 0;
     }
     return do_free;
 }
@@ -345,7 +345,7 @@ int vbar_fault(void *devctx, void *vbar, uint64_t offset, uint64_t size, uint32_
 
     for (uint64_t page_nr = VBAR_GET_PAGE_NR(offset); page_nr < page_end; page_nr++) {
         ResidentPage *rp = &mv->residency_map[page_nr];
-        rp->pinned = true;
+        rp->pin_count++;
     }
 
     log(VVERBOSE, "%s (return) %d\n", __func__, ret);
@@ -367,7 +367,11 @@ void vbar_unpin(void *devctx, void *vbar, uint64_t offset, uint64_t size) {
     }
 
     for (uint64_t page_nr = VBAR_GET_PAGE_NR(offset); page_nr < page_end && page_nr < mv->nr_pages; page_nr++) {
-        mod1(mv, page_nr, page_nr >= mv->watermark, true);
+        ResidentPage *rp = &mv->residency_map[page_nr];
+        if (rp->pin_count) {
+            rp->pin_count--;
+        }
+        mod1(mv, page_nr, page_nr >= mv->watermark, false);
     }
 }
 
@@ -422,7 +426,7 @@ void vbar_get_residency(void *devctx, void *vbar, uint8_t *out, size_t max_pages
     for (size_t i = 0; i < n; i++) {
         ResidentPage *rp = &mv->residency_map[i];
         /* bit 0: resident, bit 1: pinned */
-        out[i] = (rp->handle ? 1 : 0) | (rp->pinned ? 2 : 0);
+        out[i] = (rp->handle ? 1 : 0) | (rp->pin_count ? 2 : 0);
     }
 }
 
