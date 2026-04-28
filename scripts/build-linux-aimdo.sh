@@ -12,8 +12,7 @@ FUNCHOOK_TARBALL="$BUILD_DIR/funchook-$FUNCHOOK_VERSION.tar.gz"
 
 ARCH=$(uname -m)
 
-# Select disassembler based on architecture
-# funchook uses distorm on x86_64, capstone on aarch64
+# Linkless builds no longer need CUDA stubs; only the funchook backend varies.
 if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     FUNCHOOK_DISASM=capstone
     FUNCHOOK_BUILD_DIR="$BUILD_DIR/funchook-$FUNCHOOK_VERSION-capstone"
@@ -29,6 +28,24 @@ if [ ! -f "$FUNCHOOK_SRC/CMakeLists.txt" ]; then
     curl -fL "$URL" -o "$FUNCHOOK_TARBALL"
     rm -rf "$FUNCHOOK_SRC"
     tar -xzf "$FUNCHOOK_TARBALL" -C "$BUILD_DIR"
+fi
+
+if [ "$FUNCHOOK_DISASM" = "capstone" ] && ! grep -q "CAPSTONE_CMAKELISTS" "$FUNCHOOK_SRC/CMakeLists.txt"; then
+    patch -d "$FUNCHOOK_SRC" -p1 --forward <<'PATCH'
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -86,6 +86,11 @@ if (DISASM_CAPSTONE)
+   execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+       WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/capstone-download"
+   )
+ 
++  # Capstone 4.0.2 still sets CMP0048 to OLD, which newer CMake rejects.
++  file(READ "${CMAKE_CURRENT_BINARY_DIR}/capstone-src/CMakeLists.txt" CAPSTONE_CMAKELISTS)
++  string(REPLACE "cmake_policy (SET CMP0048 OLD)" "cmake_policy (SET CMP0048 NEW)" CAPSTONE_CMAKELISTS "${CAPSTONE_CMAKELISTS}")
++  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/capstone-src/CMakeLists.txt" "${CAPSTONE_CMAKELISTS}")
++
+   string(TOUPPER ${FUNCHOOK_CPU} FUNCHOOK_CPU_UPPER)
+PATCH
 fi
 
 FUNCHOOK_READY=false
@@ -52,6 +69,7 @@ if [ "$FUNCHOOK_READY" = "false" ]; then
 
     cmake -S "$FUNCHOOK_SRC" -B "$FUNCHOOK_BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DFUNCHOOK_BUILD_SHARED=OFF \
         -DFUNCHOOK_BUILD_STATIC=ON \

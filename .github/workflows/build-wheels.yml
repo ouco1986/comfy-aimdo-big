@@ -18,10 +18,24 @@ permissions:
 
 jobs:
   build_wheels:
-    runs-on: ${{ matrix.os }}
+    name: Build wheels (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runs_on }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - runs_on: ubuntu-latest
+            platform: linux
+            arch: x86_64
+          - runs_on: ubuntu-24.04-arm
+            platform: linux
+            arch: aarch64
+          - runs_on: windows-latest
+            platform: windows
+            arch: amd64
+          - runs_on: windows-11-arm
+            platform: windows
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -29,55 +43,59 @@ jobs:
           fetch-depth: 0
 
       - name: Build custom build image
-        if: runner.os == 'Linux'
-        run: docker build -t custom-cuda-builder -f docker/cuda-on-manylinux.Dockerfile .
-
-      - name: Build Detours (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.platform == 'linux'
         run: |
-          git clone --depth 1 https://github.com/microsoft/Detours.git C:\Detours
-          cd C:\Detours
+          docker build \
+            -t custom-cuda-builder \
+            --build-arg MANYLINUX_IMAGE=quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+            -f docker/cuda-on-manylinux.Dockerfile \
+            .
 
-          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
-
-          cmd.exe /c "call `"$vcvars`" && cd /d C:\Detours && nmake"
-        shell: pwsh
-
-      - name: Windows build
-        if: runner.os == 'Windows'
+      - name: Build Windows binaries
+        if: matrix.platform == 'windows'
+        env:
+          VCVARS_ARCH: ${{ matrix.arch == 'amd64' && 'x64' || matrix.arch }}
+          DETOURS_TARGET_PROCESSOR: ${{ matrix.arch == 'amd64' && 'X64' || 'ARM64' }}
+          DETOURS_LIB_DIR: C:/Detours/lib.${{ matrix.arch == 'amd64' && 'X64' || 'ARM64' }}
         run: |
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VS_PATH=%%i"
-          call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" %VCVARS_ARCH%
+
+          if exist C:\Detours rmdir /s /q C:\Detours
+          git clone --depth 1 https://github.com/microsoft/Detours.git C:\Detours
+          pushd C:\Detours
+          nmake
+          popd
+
           del /q comfy_aimdo\*.dll 2>nul
           cl.exe /LD /O2 ^
             src/*.c src-cuda/dispatch.c src-win/*.c ^
             /Isrc /Isrc-win /IC:/Detours/include /FIcompiler.h /Fe:comfy_aimdo/aimdo.dll ^
-            /link /LIBPATH:C:/Detours/lib.X64 ^
+            /link /LIBPATH:%DETOURS_LIB_DIR% ^
             dxgi.lib dxguid.lib detours.lib onecore.lib
           cl.exe /LD /O2 /D__HIP_PLATFORM_AMD__ ^
             src/*.c src-hip/dispatch.c src-win/*.c ^
             /Isrc /Isrc-win /IC:/Detours/include /FIcompiler.h /Fe:comfy_aimdo/aimdo_rocm.dll ^
-            /link /LIBPATH:C:/Detours/lib.X64 ^
+            /link /LIBPATH:%DETOURS_LIB_DIR% ^
             dxgi.lib dxguid.lib detours.lib onecore.lib
         shell: cmd
 
       - name: Build default Stub Wheel
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux' && matrix.arch == 'x86_64'
         run: |
           pip install build
           rm -f comfy_aimdo/*.so comfy_aimdo/*.dll
           python -m build --wheel --outdir wheelhouse-none/
 
       - name: Upload Stub Wheel
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux' && matrix.arch == 'x86_64'
         uses: actions/upload-artifact@v4
         with:
           name: wheels-none
           path: ./wheelhouse-none/*.whl
 
       - name: Pre-fetch virtualenv.pyz (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.platform == 'windows'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -92,15 +110,16 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_MANYLINUX_X86_64_IMAGE: custom-cuda-builder 
-          CIBW_BUILD: "cp39-manylinux_x86_64 cp39-win_amd64"
+          CIBW_MANYLINUX_X86_64_IMAGE: custom-cuda-builder
+          CIBW_MANYLINUX_AARCH64_IMAGE: custom-cuda-builder
+          CIBW_BUILD: ${{ matrix.platform == 'linux' && format('cp39-manylinux_{0}', matrix.arch) || format('cp39-win_{0}', matrix.arch) }}
           CIBW_BEFORE_BUILD_LINUX: bash ./scripts/build-linux-aimdo.sh
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair --exclude libcuda.so.1 -w {dest_dir} {wheel}"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.platform }}-${{ matrix.arch }}
           path: ./wheelhouse/*.whl
 
   publish:

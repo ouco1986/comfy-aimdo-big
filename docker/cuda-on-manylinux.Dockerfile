@@ -1,5 +1,6 @@
-# Start with the standard Manylinux image (CentOS 7 based)
-FROM quay.io/pypa/manylinux2014_x86_64
+# Start with the requested manylinux image for the active architecture.
+ARG MANYLINUX_IMAGE=quay.io/pypa/manylinux2014_x86_64
+FROM ${MANYLINUX_IMAGE}
 
 # 1. Fix CentOS 7 EOL Repos (Mandatory for Manylinux2014)
 RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && \
